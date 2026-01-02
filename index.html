@@ -79,14 +79,15 @@
         let newArr = getArray('newData');
         let oldArr = getArray('oldData');
         
-        // 1. Loại bỏ trùng nội bộ trong danh sách mới (nếu chọn)
+        // 1. Lọc trùng nội bộ
         if (document.getElementById('removeDupes').checked) {
             newArr = [...new Set(newArr)];
         }
 
-        // 2. CHỨC NĂNG CHÍNH: Loại bỏ những gì đã tồn tại trong danh sách cũ
-        // Chỉ giữ lại những phần tử thuộc newArr mà KHÔNG nằm trong oldArr
-        let filtered = newArr.filter(item => !oldArr.includes(item));
+        // 2. CHỨC NĂNG CHÍNH: Loại bỏ dữ liệu đã tồn tại
+        // Dùng Set để tăng tốc độ xử lý nếu dữ liệu lớn (hàng vạn dòng)
+        const oldSet = new Set(oldArr);
+        let filtered = newArr.filter(item => !oldSet.has(item));
 
         document.getElementById('finalCount').innerText = `${filtered.length} items mới`;
 
@@ -104,15 +105,30 @@
     async function copy() {
         const el = document.getElementById('result');
         if (!el.value) return;
-        await navigator.clipboard.writeText(el.value);
-        alert("Đã copy " + document.getElementById('finalCount').innerText);
+        try {
+            await navigator.clipboard.writeText(el.value);
+            // Thay alert bằng hiệu ứng nút để chuyên nghiệp hơn
+            const btn = document.querySelector('.btn-copy');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = "✅ ĐÃ COPY!";
+            btn.style.background = "#059669";
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.style.background = "";
+            }, 1500);
+        } catch (err) {
+            alert("Lỗi copy!");
+        }
     }
-  // Đăng ký Service Worker để chạy Offline và hiện nút Install
-  if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js')
-      .then(() => console.log("Offline Mode Ready"))
-      .catch((err) => console.log("Offline Mode Failed", err));
-  }
+
+    // Đăng ký Service Worker
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log("Offline Ready"))
+            .catch(err => console.log("Offline Fail", err));
+        });
+    }
 </script>
 
 </body>
