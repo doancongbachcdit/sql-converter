@@ -1,0 +1,136 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL Smart Diff Tool</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        :root { --primary: #2563eb; --bg: #f8fafc; --card: #ffffff; --text: #1e293b; --border: #e2e8f0; }
+        @media (prefers-color-scheme: dark) { :root { --bg: #0f172a; --card: #1e293b; --text: #f1f5f9; --border: #334155; } }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 20px; transition: 0.3s; }
+        .container { max-width: 1000px; margin: auto; background: var(--card); padding: 25px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border: 1px solid var(--border); }
+        .editor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        h2 { margin-top: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .badge { font-size: 0.75rem; background: var(--primary); color: white; padding: 2px 8px; border-radius: 10px; }
+        .label-group { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; font-weight: 600; font-size: 14px; color: #64748b; }
+        textarea { width: 100%; height: 150px; padding: 12px; border: 2px solid var(--border); border-radius: 10px; background: transparent; color: var(--text); font-family: monospace; font-size: 13px; box-sizing: border-box; }
+        textarea:focus { border-color: var(--primary); outline: none; }
+        .options { display: flex; flex-wrap: wrap; gap: 15px; margin: 15px 0; padding: 15px; background: rgba(0,0,0,0.02); border-radius: 10px; }
+        .actions { display: flex; gap: 10px; margin-top: 20px; }
+        button { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .btn-main { background: var(--primary); color: white; }
+        .btn-copy { background: #10b981; color: white; }
+        .highlight { color: #f59e0b; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🚀 SQL Smart Filter <span id="finalCount" class="badge">0 items</span></h2>
+
+    <div class="editor-grid">
+        <div>
+            <div class="label-group">
+                <span>DỮ LIỆU MỚI (Cần lấy)</span>
+                <span id="newCount" class="badge" style="background:#64748b">0</span>
+            </div>
+            <textarea id="newData" oninput="counts()" placeholder="Dán dữ liệu mới vào đây..."></textarea>
+        </div>
+        <div>
+            <div class="label-group">
+                <span>DỮ LIỆU CŨ (Đã có - Để loại trừ)</span>
+                <span id="oldCount" class="badge" style="background:#64748b">0</span>
+            </div>
+            <textarea id="oldData" oninput="counts()" placeholder="Dán dữ liệu đã có trong DB để lọc bỏ..."></textarea>
+        </div>
+    </div>
+
+    <div class="options">
+        <label><input type="checkbox" id="addQuotes"> Nháy đơn (' ')</label>
+        <label><input type="checkbox" id="addBrackets" checked> Ngoặc ( )</label>
+        <label><input type="checkbox" id="removeDupes" checked> Lọc trùng nội bộ</label>
+        <span class="highlight">💡 Tự động loại bỏ dữ liệu cũ khỏi danh sách mới</span>
+    </div>
+
+    <div class="actions">
+        <button class="btn-main" onclick="process()">⚡ LỌC & CHUYỂN ĐỔI</button>
+        <button class="btn-copy" onclick="copy()">📋 SAO CHÉP KẾT QUẢ</button>
+    </div>
+
+    <div style="margin-top: 20px;">
+        <div class="label-group">KẾT QUẢ TRUY VẤN SQL:</div>
+        <textarea id="result" style="height: 100px; border-color: var(--primary)" readonly></textarea>
+    </div>
+</div>
+
+<script>
+    function getArray(id) {
+        return document.getElementById(id).value.split(/\r?\n/)
+            .map(i => i.trim()).filter(i => i !== "");
+    }
+
+    function counts() {
+        document.getElementById('newCount').innerText = getArray('newData').length;
+        document.getElementById('oldCount').innerText = getArray('oldData').length;
+    }
+
+    function process() {
+        let newArr = getArray('newData');
+        let oldArr = getArray('oldData');
+        
+        // 1. Lọc trùng nội bộ
+        if (document.getElementById('removeDupes').checked) {
+            newArr = [...new Set(newArr)];
+        }
+
+        // 2. CHỨC NĂNG CHÍNH: Loại bỏ dữ liệu đã tồn tại
+        // Dùng Set để tăng tốc độ xử lý nếu dữ liệu lớn (hàng vạn dòng)
+        const oldSet = new Set(oldArr);
+        let filtered = newArr.filter(item => !oldSet.has(item));
+
+        document.getElementById('finalCount').innerText = `${filtered.length} items mới`;
+
+        // 3. Định dạng SQL
+        if (document.getElementById('addQuotes').checked) {
+            filtered = filtered.map(i => `'${i}'`);
+        }
+        
+        let res = filtered.join(', ');
+        if (document.getElementById('addBrackets').checked) res = `(${res})`;
+        
+        document.getElementById('result').value = res;
+    }
+
+    async function copy() {
+        const el = document.getElementById('result');
+        if (!el.value) return;
+        try {
+            await navigator.clipboard.writeText(el.value);
+            // Thay alert bằng hiệu ứng nút để chuyên nghiệp hơn
+            const btn = document.querySelector('.btn-copy');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = "✅ ĐÃ COPY!";
+            btn.style.background = "#059669";
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.style.background = "";
+            }, 1500);
+        } catch (err) {
+            alert("Lỗi copy!");
+        }
+    }
+
+    // Đăng ký Service Worker
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log("Offline Ready"))
+            .catch(err => console.log("Offline Fail", err));
+        });
+    }
+</script>
+
+</body>
+</html>
